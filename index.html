@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Plus+ Settings</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1b1d22;
+    --muted: #5f6672;
+    --line: #e1e4e9;
+    --accent: #2f6fde;
+    --accent-text: #ffffff;
+    --ok: #1d8a4e;
+    --warn: #a65d00;
+    --danger: #c8322f;
+    --danger-bg: #fdf0ef;
+    --toggle-off: #c9ced6;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111317;
+      --card: #1b1e24;
+      --text: #eceef2;
+      --muted: #9aa2ae;
+      --line: #2c3039;
+      --accent: #5b8ff0;
+      --accent-text: #0d1117;
+      --ok: #47c07d;
+      --warn: #e0a24a;
+      --danger: #f07370;
+      --danger-bg: #2a1b1c;
+      --toggle-off: #3a3f49;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  main { max-width: 520px; margin: 0 auto; }
+  header { margin: 8px 0 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+  p { margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .conn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--toggle-off); flex: none; }
+  .dot.on { background: var(--ok); }
+  .dot.busy { background: var(--warn); }
+  .conn-text { flex: 1 1 160px; min-width: 0; }
+  .conn-text strong { display: block; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    padding: 11px 16px;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .primary { background: var(--accent); color: var(--accent-text); }
+  .secondary { background: transparent; color: var(--text); border-color: var(--line); }
+  .danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+  .full { width: 100%; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-top: 1px solid var(--line);
+  }
+  .row:first-of-type { border-top: 0; padding-top: 0; }
+  .row-label { min-width: 0; }
+  .row-label strong { display: block; font-weight: 600; }
+  .row-label span { color: var(--muted); font-size: 14px; }
+  .switch { position: relative; flex: none; width: 52px; height: 32px; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .switch .track {
+    position: absolute; inset: 0; border-radius: 16px; background: var(--toggle-off);
+    transition: background 0.15s; pointer-events: none;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(20px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  select {
+    font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; min-height: 44px; max-width: 150px;
+  }
+  .save-bar { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .save-bar .note { color: var(--muted); font-size: 14px; flex: 1 1 140px; }
+  .note.dirty { color: var(--warn); }
+  .note.good { color: var(--ok); }
+  .note.bad { color: var(--danger); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
+  dt { color: var(--muted); font-size: 14px; }
+  dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .info { color: var(--muted); font-size: 13px; margin-top: 12px; overflow-wrap: anywhere; }
+  .danger-card { border-color: var(--danger); background: var(--danger-bg); }
+  .danger-card p { margin-bottom: 12px; font-size: 14px; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 14px; border: 1px solid var(--line); background: var(--card); }
+  .msg.bad { border-color: var(--danger); color: var(--danger); }
+  .msg.warn { border-color: var(--warn); }
+  .hidden { display: none !important; }
+  .warn-text { color: var(--warn); font-size: 13px; display: block; margin-top: 2px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 18px; }
+  footer p + p { margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Plus+ Settings</h1>
+    <p class="sub">Change your XIAO Plus+ emulator over Bluetooth. Disconnect it from Pokémon GO first.</p>
+  </header>
+
+  <div id="unsupported" class="msg bad hidden"></div>
+  <div id="message" class="msg hidden" role="status" aria-live="polite"></div>
+
+  <section class="card">
+    <div class="conn">
+      <span id="dot" class="dot" aria-hidden="true"></span>
+      <div class="conn-text">
+        <strong id="connTitle">Not connected</strong>
+        <span id="connSub" class="sub">Tap Connect and pick “Pokemon GO Plus +”.</span>
+      </div>
+      <button id="connectBtn" class="primary">Connect</button>
+      <button id="disconnectBtn" class="secondary hidden">Disconnect</button>
+    </div>
+  </section>
+
+  <section id="settingsCard" class="card hidden" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Auto-catch Pokémon</strong>
+        <span>Press the button for you when a Pokémon appears.</span>
+      </div>
+      <label class="switch"><input id="autoCatch" type="checkbox" aria-label="Auto-catch Pokémon"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Auto-spin PokéStops</strong>
+        <span>Press the button for you at a PokéStop.</span>
+      </div>
+      <label class="switch"><input id="autoSpin" type="checkbox" aria-label="Auto-spin PokéStops"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Pokémon Sleep data</strong>
+        <span>Let the firmware create its automatic sleep sessions.</span>
+        <span class="warn-text">These sessions are generated, not recorded.</span>
+      </div>
+      <label class="switch"><input id="sleepData" type="checkbox" aria-label="Pokémon Sleep data"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Light sleep after</strong>
+        <span>Minutes with no connection before it advertises slowly.</span>
+      </div>
+      <select id="lightSleep" aria-label="Light sleep after">
+        <option value="0">Never</option>
+        <option value="5">5 min</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">1 hour</option>
+        <option value="120">2 hours</option>
+        <option value="240">4 hours</option>
+      </select>
+    </div>
+
+    <div class="save-bar">
+      <span id="saveNote" class="note">Saved on the device.</span>
+      <button id="saveBtn" class="primary" disabled>Save</button>
+    </div>
+  </section>
+
+  <section id="statusCard" class="card hidden" aria-labelledby="statusHeading">
+    <h2 id="statusHeading">Status</h2>
+    <dl>
+      <dt>Pairing</dt><dd id="stPaired">–</dd>
+      <dt>Pairing stage</dt><dd id="stStage">–</dd>
+      <dt>Uptime</dt><dd id="stUptime">–</dd>
+      <dt>Battery</dt><dd id="stBattery">–</dd>
+    </dl>
+    <p id="infoLine" class="info"></p>
+  </section>
+
+  <section id="dangerCard" class="card danger-card hidden" aria-labelledby="dangerHeading">
+    <h2 id="dangerHeading">Reset pairing</h2>
+    <p>Clears the saved pairing so you can pair a different phone or account. You will need to pair it again in Pokémon GO. Same as holding the D0 button for 5 seconds.</p>
+    <button id="resetBtn" class="danger full">Reset pairing</button>
+  </section>
+
+  <footer>
+    <p>Only one phone app can connect at a time. While this page is connected, Pokémon GO can't reach the device, so tap Disconnect when you're done.</p>
+    <p>Needs Chrome on Android. If Connect can't find the settings, flash the firmware that includes the settings service.</p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const SERVICE = "b7a40001-3c1e-4f8a-9d62-5e1f0c7a9b30";
+  const VALUE   = "b7a40002-3c1e-4f8a-9d62-5e1f0c7a9b30";
+  const STATUS  = "b7a40003-3c1e-4f8a-9d62-5e1f0c7a9b30";
+  const COMMAND = "b7a40004-3c1e-4f8a-9d62-5e1f0c7a9b30";
+  const INFO    = "b7a40005-3c1e-4f8a-9d62-5e1f0c7a9b30";
+  const DEVICE_NAME = "Pokemon GO Plus +";
+
+  const FLAG_CATCH = 0x01, FLAG_SPIN = 0x02, FLAG_SLEEP = 0x04;
+  const STAGES = ["Not paired (ready to pair)", "Pairing: staged", "Pairing: committed", "Paired"];
+  const RESULTS = {
+    1: ["Saved on the device.", "good"],
+    2: ["The device couldn't save to its memory. Settings apply until it restarts.", "bad"],
+    3: ["The device rejected those settings.", "bad"],
+    5: ["The device rejected that command.", "bad"],
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const ui = {
+    dot: $("dot"), connTitle: $("connTitle"), connSub: $("connSub"),
+    connectBtn: $("connectBtn"), disconnectBtn: $("disconnectBtn"),
+    message: $("message"), unsupported: $("unsupported"),
+    settingsCard: $("settingsCard"), statusCard: $("statusCard"), dangerCard: $("dangerCard"),
+    autoCatch: $("autoCatch"), autoSpin: $("autoSpin"), sleepData: $("sleepData"), lightSleep: $("lightSleep"),
+    saveBtn: $("saveBtn"), saveNote: $("saveNote"), resetBtn: $("resetBtn"),
+    stPaired: $("stPaired"), stStage: $("stStage"), stUptime: $("stUptime"), stBattery: $("stBattery"),
+    infoLine: $("infoLine"),
+  };
+
+  let device = null;
+  let chars = {};
+  let deviceSettings = null;   // last value read from the device
+  let expectingDisconnect = false;
+  let busy = false;
+
+  function showMessage(text, kind) {
+    if (!text) { ui.message.classList.add("hidden"); return; }
+    ui.message.textContent = text;
+    ui.message.className = "msg" + (kind ? " " + kind : "");
+  }
+
+  function setConnState(state, title, sub) {
+    ui.dot.className = "dot" + (state === "on" ? " on" : state === "busy" ? " busy" : "");
+    ui.connTitle.textContent = title;
+    ui.connSub.textContent = sub;
+    const connected = state === "on";
+    ui.connectBtn.classList.toggle("hidden", connected);
+    ui.disconnectBtn.classList.toggle("hidden", !connected);
+    ui.connectBtn.disabled = state === "busy";
+    [ui.settingsCard, ui.statusCard, ui.dangerCard].forEach((el) => el.classList.toggle("hidden", !connected));
+  }
+
+  function checkSupport() {
+    if (!window.isSecureContext) {
+      ui.unsupported.textContent = "This page has to be opened from an https:// address (or localhost) for Bluetooth to work.";
+    } else if (!navigator.bluetooth) {
+      ui.unsupported.textContent = "This browser can't use Bluetooth from a web page. Open this page in Chrome on Android.";
+    } else {
+      return true;
+    }
+    ui.unsupported.classList.remove("hidden");
+    ui.connectBtn.disabled = true;
+    return false;
+  }
+
+  // ---- settings encoding (matches pp_user_settings.h) ----
+  function decodeSettings(view) {
+    if (view.byteLength < 4 || view.getUint8(0) !== 1) throw new Error("Unknown settings format from the device.");
+    const flags = view.getUint8(1);
+    return {
+      autoCatch: !!(flags & FLAG_CATCH),
+      autoSpin: !!(flags & FLAG_SPIN),
+      sleepData: !!(flags & FLAG_SLEEP),
+      lightSleepMinutes: view.getUint16(2, true),
+    };
+  }
+
+  function encodeSettings(s) {
+    const buf = new Uint8Array(8);
+    buf[0] = 1;
+    buf[1] = (s.autoCatch ? FLAG_CATCH : 0) | (s.autoSpin ? FLAG_SPIN : 0) | (s.sleepData ? FLAG_SLEEP : 0);
+    buf[2] = s.lightSleepMinutes & 0xff;
+    buf[3] = (s.lightSleepMinutes >> 8) & 0xff;
+    return buf;
+  }
+
+  function formSettings() {
+    return {
+      autoCatch: ui.autoCatch.checked,
+      autoSpin: ui.autoSpin.checked,
+      sleepData: ui.sleepData.checked,
+      lightSleepMinutes: parseInt(ui.lightSleep.value, 10) || 0,
+    };
+  }
+
+  function ensureOption(minutes) {
+    const v = String(minutes);
+    if (![...ui.lightSleep.options].some((o) => o.value === v)) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = minutes + " min";
+      ui.lightSleep.appendChild(opt);
+    }
+  }
+
+  function fillForm(s) {
+    ui.autoCatch.checked = s.autoCatch;
+    ui.autoSpin.checked = s.autoSpin;
+    ui.sleepData.checked = s.sleepData;
+    ensureOption(s.lightSleepMinutes);
+    ui.lightSleep.value = String(s.lightSleepMinutes);
+  }
+
+  function sameSettings(a, b) {
+    return !!a && !!b && a.autoCatch === b.autoCatch && a.autoSpin === b.autoSpin &&
+      a.sleepData === b.sleepData && a.lightSleepMinutes === b.lightSleepMinutes;
+  }
+
+  function setNote(text, kind) {
+    ui.saveNote.textContent = text;
+    ui.saveNote.className = "note" + (kind ? " " + kind : "");
+  }
+
+  function refreshDirty() {
+    const dirty = !sameSettings(formSettings(), deviceSettings);
+    ui.saveBtn.disabled = !dirty || busy;
+    if (dirty) setNote("Unsaved changes.", "dirty");
+    else if (ui.saveNote.classList.contains("dirty")) setNote("Saved on the device.", "");
+  }
+
+  // ---- status (matches pp_settings_service.h) ----
+  function formatUptime(sec) {
+    const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+    if (d > 0) return d + "d " + h + "h " + m + "m";
+    if (h > 0) return h + "h " + m + "m";
+    return m + "m " + (sec % 60) + "s";
+  }
+
+  function renderStatus(view) {
+    if (view.byteLength < 10 || view.getUint8(0) !== 1) return;
+    const paired = view.getUint8(1) === 1;
+    const stage = view.getUint8(2);
+    const uptime = view.getUint32(4, true);
+    const mv = view.getUint16(8, true);
+    ui.stPaired.textContent = paired ? "Saved pairing" : "No saved pairing";
+    ui.stStage.textContent = STAGES[stage] || ("Stage " + stage);
+    ui.stUptime.textContent = formatUptime(uptime);
+    // Without a battery the reading shows the charger/USB side, so treat odd values as "no battery".
+    ui.stBattery.textContent = mv >= 2800 && mv <= 4400 ? (mv / 1000).toFixed(2) + " V" : "No battery reading";
+    return view.getUint8(3);
+  }
+
+  // Live status every ~2 s. The command result byte is only used right after a
+  // save (in save()), so an old result from an earlier visit is never shown.
+  function onStatusNotify(event) {
+    renderStatus(event.target.value);
+  }
+
+  // ---- connection ----
+  async function connect() {
+    showMessage("");
+    let picked;
+    try {
+      picked = await navigator.bluetooth.requestDevice({
+        filters: [{ name: DEVICE_NAME }],
+        optionalServices: [SERVICE],
+      });
+    } catch (err) {
+      if (err && err.name === "NotFoundError") return; // user closed the picker
+      showMessage("Couldn't open the Bluetooth picker: " + err.message, "bad");
+      return;
+    }
+
+    device = picked;
+    device.addEventListener("gattserverdisconnected", onDisconnected);
+    setConnState("busy", "Connecting…", device.name || DEVICE_NAME);
+    try {
+      const server = await device.gatt.connect();
+      let service;
+      try {
+        service = await server.getPrimaryService(SERVICE);
+      } catch (err) {
+        throw new Error("Connected, but the device has no settings service. Flash the firmware that includes it. If you just flashed it, turn Bluetooth off and on and try again.");
+      }
+      chars = {
+        value: await service.getCharacteristic(VALUE),
+        status: await service.getCharacteristic(STATUS),
+        command: await service.getCharacteristic(COMMAND),
+        info: await service.getCharacteristic(INFO),
+      };
+
+      deviceSettings = decodeSettings(await chars.value.readValue());
+      fillForm(deviceSettings);
+      setNote("Saved on the device.", "");
+      renderStatus(await chars.status.readValue());
+      try {
+        ui.infoLine.textContent = new TextDecoder().decode(await chars.info.readValue());
+      } catch (_) { ui.infoLine.textContent = ""; }
+
+      chars.status.addEventListener("characteristicvaluechanged", onStatusNotify);
+      await chars.status.startNotifications();
+
+      setConnState("on", "Connected", device.name || DEVICE_NAME);
+      refreshDirty();
+    } catch (err) {
+      expectingDisconnect = true;
+      try { device.gatt.disconnect(); } catch (_) {}
+      setConnState("off", "Not connected", "Tap Connect and pick “Pokemon GO Plus +”.");
+      showMessage(err.message || String(err), "bad");
+    }
+  }
+
+  function disconnect() {
+    if (device && device.gatt.connected) {
+      expectingDisconnect = true;
+      device.gatt.disconnect();
+    }
+  }
+
+  function onDisconnected() {
+    chars = {};
+    const expected = expectingDisconnect;
+    expectingDisconnect = false;
+    setConnState("off", "Not connected", "Tap Connect and pick “Pokemon GO Plus +”.");
+    if (!expected) showMessage("The device disconnected.", "warn");
+  }
+
+  async function save() {
+    if (!chars.value) return;
+    const wanted = formSettings();
+    busy = true;
+    ui.saveBtn.disabled = true;
+    setNote("Saving…", "");
+    try {
+      await chars.value.writeValueWithResponse(encodeSettings(wanted));
+      // The device saves to flash from its main loop; give it a moment, then read back.
+      await new Promise((r) => setTimeout(r, 400));
+      deviceSettings = decodeSettings(await chars.value.readValue());
+      const result = renderStatus(await chars.status.readValue());
+      fillForm(deviceSettings);
+      if (!sameSettings(wanted, deviceSettings)) {
+        setNote("The device didn't keep those settings. Try again.", "bad");
+      } else if (result && RESULTS[result]) {
+        setNote(RESULTS[result][0], RESULTS[result][1]);
+      } else {
+        setNote("Saved on the device.", "good");
+      }
+    } catch (err) {
+      setNote("Save failed: " + err.message, "bad");
+    } finally {
+      busy = false;
+      refreshDirty();
+    }
+  }
+
+  async function resetPairing() {
+    if (!chars.command) return;
+    const ok = window.confirm("Reset pairing?\n\nThe saved pairing is cleared and the device disconnects. You'll need to pair it again in Pokémon GO.");
+    if (!ok) return;
+    try {
+      expectingDisconnect = true;
+      await chars.command.writeValueWithResponse(new Uint8Array([0x01, 0xa5]));
+      showMessage("Pairing reset. The device is now ready to pair with a phone in Pokémon GO.", "");
+    } catch (err) {
+      // The device disconnects as part of the reset, which can end the write early.
+      if (device && !device.gatt.connected) {
+        showMessage("Pairing reset. The device is now ready to pair with a phone in Pokémon GO.", "");
+      } else {
+        expectingDisconnect = false;
+        showMessage("Reset failed: " + err.message, "bad");
+      }
+    }
+  }
+
+  ui.connectBtn.addEventListener("click", connect);
+  ui.disconnectBtn.addEventListener("click", disconnect);
+  ui.saveBtn.addEventListener("click", save);
+  ui.resetBtn.addEventListener("click", resetPairing);
+  [ui.autoCatch, ui.autoSpin, ui.sleepData, ui.lightSleep].forEach((el) => el.addEventListener("change", refreshDirty));
+  window.addEventListener("pagehide", disconnect);
+
+  checkSupport();
+})();
+</script>
+</body>
+</html>
