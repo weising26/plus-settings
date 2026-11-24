@@ -137,6 +137,14 @@
   .alert-row.seen { border-color: var(--warn); }
   .alert-row.seen .state { color: var(--warn); }
   .warn-text { color: var(--warn); font-size: 13px; display: block; margin-top: 2px; }
+  .stats-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  table.stats { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.stats th { color: var(--muted); font-size: 13px; font-weight: 600; text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  table.stats th:first-child, table.stats td:first-child { text-align: left; }
+  table.stats td { text-align: right; padding: 9px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.stats td strong { font-weight: 600; }
+  table.stats td .problems { display: block; color: var(--warn); font-size: 13px; margin-top: 2px; }
+  table.stats tr.total td { font-weight: 600; border-bottom: 0; }
   footer { color: var(--muted); font-size: 13px; margin-top: 18px; }
   footer p + p { margin-top: 6px; }
 </style>
@@ -298,6 +306,18 @@
     </div>
   </section>
 
+  <section id="statsCard" class="card hidden" aria-labelledby="statsHeading">
+    <div class="stats-head">
+      <h2 id="statsHeading" style="margin:0">Daily stats</h2>
+      <select id="statsDay" aria-label="Day"><option value="0">Today</option></select>
+    </div>
+    <div id="statsBody"><p class="sub">Loading…</p></div>
+    <p class="sub" style="margin-top:10px">Counted by the hub from each account's catches and spins. Days start at midnight on this phone's clock. The hub keeps 7 days.</p>
+    <div class="actions" style="margin-top:14px">
+      <button id="statsResetBtn" class="danger">Clear all stats</button>
+    </div>
+  </section>
+
   <section id="namesCard" class="card hidden" aria-labelledby="namesHeading">
     <h2 id="namesHeading">Account names</h2>
     <p class="sub" style="margin-bottom:8px">Shown on the screen and in Alerts. Up to 12 letters; the screen fits 9.</p>
@@ -341,6 +361,7 @@
   const INFO = "5c3a0005" + BASE;
   const NAMES = "5c3a0006" + BASE;   // alert hub firmware only
   const ALERTS = "5c3a0007" + BASE;  // alert hub firmware only
+  const STATS = "5c3a0008" + BASE;   // daily stats firmware only
   const DEVICE_NAME = "Pokemon GO Plus";
   const ACCOUNT_DEFAULTS = ["Plus+ 1", "Plus+ 2", "Phone 1", "Phone 2", "Phone 3", "Phone 4"];
   const PROBLEMS = { BAG_FULL: "Bag full", BOX_FULL: "Storage full", NO_BALLS: "Out of Poké Balls" };
@@ -349,7 +370,8 @@
   // matches pgp_settings_service.h
   const FLAGS = { autoCatch: 0x01, autoSpin: 0x02, powerbankPing: 0x04, ledInteractions: 0x08, useButton: 0x10, useLed: 0x20, verbose: 0x40 };
   const TOGGLES = Object.keys(FLAGS);
-  const CMD_RESTART = 0x01, CMD_ADVERTISE = 0x02, CMD_ACK = 0x03, CMD_TEST = 0x04;
+  const CMD_RESTART = 0x01, CMD_ADVERTISE = 0x02, CMD_ACK = 0x03, CMD_TEST = 0x04, CMD_RESET_STATS = 0x05;
+  const STATS_DAYS = 7;
   const RESULTS = {
     1: ["Saved on the device.", "good"],
     2: ["The device couldn't save to its memory. Settings apply until it restarts.", "bad"],
@@ -363,7 +385,7 @@
    "settingsCard", "statusCard", "actionsCard", "target", "slot", "saveBtn", "saveNote",
    "stConnections", "stName", "stMac", "stUptime", "stHeap", "restartBox", "restartNowBtn",
    "advertiseBtn", "restartBtn", "alertsCard", "namesCard", "alertList", "ackBtn", "testBtn",
-   "namesNote", "namesBtn", "vibrate", "repeat"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
+   "namesNote", "namesBtn", "vibrate", "repeat", "statsCard", "statsDay", "statsBody", "statsResetBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
   const nameInputs = [0, 1, 2, 3, 4, 5].map((i) => $("name" + i));
 
   let device = null;
@@ -375,6 +397,9 @@
   let pollTimer = null;
   let hasAlerts = false;      // firmware has the alert hub characteristics
   let deviceNames = null;     // last names read from the device
+  let hasStats = false;       // firmware has the daily stats characteristic
+  let statsToday = null;      // hub's local day number for today
+  let pollCount = 0;
 
   // Web Bluetooth allows one GATT operation at a time, so every read and write
   // goes through this queue.
@@ -401,6 +426,7 @@
     ui.connectBtn.disabled = state === "busy";
     [ui.settingsCard, ui.statusCard, ui.actionsCard].forEach((el) => el.classList.toggle("hidden", !connected));
     [ui.alertsCard, ui.namesCard].forEach((el) => el.classList.toggle("hidden", !connected || !hasAlerts));
+    ui.statsCard.classList.toggle("hidden", !connected || !hasStats);
     document.querySelectorAll(".alert-setting").forEach((el) => el.classList.toggle("hidden", !hasAlerts));
   }
 
@@ -515,6 +541,119 @@
     renderAlerts(new TextDecoder().decode(await gatt(() => chars.alerts.readValue())));
   }
 
+  // ---- daily stats: "day,<day>,<clock known>,<today>" + "index,caught,fled,spun,box,balls,bag" lines ----
+  function parseStats(text) {
+    const lines = text.split("\n").filter(Boolean);
+    const head = (lines.shift() || "").split(",");
+    const rows = lines.map((line) => {
+      const v = line.split(",").map((x) => parseInt(x, 10) || 0);
+      return { index: v[0], caught: v[1], fled: v[2], spun: v[3], boxFull: v[4], noBalls: v[5], bagFull: v[6] };
+    });
+    return { day: parseInt(head[1], 10), clockKnown: head[2] === "1", today: parseInt(head[3], 10), rows };
+  }
+
+  function dayLabel(daysAgo, today) {
+    if (daysAgo === 0) return "Today";
+    if (daysAgo === 1) return "Yesterday";
+    if (!(today >= 0)) return daysAgo + " days ago";
+    // the day number counts local days since 1970, so read it back as a UTC date
+    return new Date((today - daysAgo) * 86400000).toLocaleDateString(undefined,
+      { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  }
+
+  function fillDayOptions(today) {
+    if (statsToday === today && ui.statsDay.options.length === STATS_DAYS) return;
+    statsToday = today;
+    const keep = ui.statsDay.value || "0";
+    const items = [];
+    for (let d = 0; d < STATS_DAYS; d++) items.push([d, dayLabel(d, today)]);
+    setOptions(ui.statsDay, items, keep);
+  }
+
+  function accountName(index) {
+    return (deviceNames && deviceNames[index]) || ACCOUNT_DEFAULTS[index] || "Account " + index;
+  }
+
+  function renderStats(s) {
+    if (s.clockKnown) fillDayOptions(s.today);
+    const used = s.rows.filter((r) => r.caught + r.fled + r.spun + r.boxFull + r.noBalls + r.bagFull > 0);
+    ui.statsBody.textContent = "";
+    if (!used.length) {
+      const p = document.createElement("p");
+      p.className = "sub";
+      p.textContent = s.day === s.today || !s.clockKnown ? "Nothing counted today yet." : "Nothing counted on this day.";
+      ui.statsBody.appendChild(p);
+      return;
+    }
+    const table = document.createElement("table");
+    table.className = "stats";
+    const head = table.createTHead().insertRow();
+    ["Account", "Caught", "Ran away", "Spun"].forEach((t) => {
+      const th = document.createElement("th");
+      th.textContent = t;
+      th.scope = "col";
+      head.appendChild(th);
+    });
+    const body = table.createTBody();
+    const total = { caught: 0, fled: 0, spun: 0 };
+    used.forEach((r) => {
+      const tr = body.insertRow();
+      const name = tr.insertCell();
+      const strong = document.createElement("strong");
+      strong.textContent = accountName(r.index);
+      name.appendChild(strong);
+      const problems = [[r.boxFull, "storage full"], [r.noBalls, "out of balls"], [r.bagFull, "bag full"]]
+        .filter(([n]) => n > 0).map(([n, label]) => label + " ×" + n);
+      if (problems.length) {
+        const span = document.createElement("span");
+        span.className = "problems";
+        span.textContent = problems.join(" · ");
+        name.appendChild(span);
+      }
+      ["caught", "fled", "spun"].forEach((k) => { tr.insertCell().textContent = r[k]; total[k] += r[k]; });
+    });
+    if (used.length > 1) {
+      const tr = body.insertRow();
+      tr.className = "total";
+      tr.insertCell().textContent = "Total";
+      ["caught", "fled", "spun"].forEach((k) => { tr.insertCell().textContent = total[k]; });
+    }
+    ui.statsBody.appendChild(table);
+  }
+
+  async function readStats() {
+    if (!chars.stats) return;
+    const daysAgo = parseInt(ui.statsDay.value, 10) || 0;
+    // the day picked is held by the device, so pick it again right before reading
+    const view = await gatt(async () => {
+      await chars.stats.writeValueWithResponse(new Uint8Array([0x01, daysAgo]));
+      return chars.stats.readValue();
+    });
+    renderStats(parseStats(new TextDecoder().decode(view)));
+  }
+
+  async function sendTime() {
+    // [0x02, Unix time u32, minutes east of UTC i16], little-endian
+    const buf = new DataView(new ArrayBuffer(7));
+    buf.setUint8(0, 0x02);
+    buf.setUint32(1, Math.floor(Date.now() / 1000), true);
+    buf.setInt16(5, -new Date().getTimezoneOffset(), true);
+    await gatt(() => chars.stats.writeValueWithResponse(buf.buffer));
+  }
+
+  async function resetStats() {
+    if (!chars.command || !chars.stats) return;
+    if (!window.confirm("Clear all daily stats?\n\nThis deletes the counts for every account and every day. It can't be undone.")) return;
+    try {
+      await sendCommand(CMD_RESET_STATS);
+      const st = renderStatus(await gatt(() => chars.status.readValue()));
+      await readStats();
+      showMessage(st && st.result === 5 ? "Daily stats cleared." : "The device didn't clear the stats.", st && st.result === 5 ? "" : "bad");
+    } catch (err) {
+      showMessage("That didn't work: " + err.message, "bad");
+    }
+  }
+
   function setOptions(select, items, value) {
     select.textContent = "";
     items.forEach(([v, label]) => {
@@ -611,6 +750,7 @@
       if (!chars.status || busy) return;
       gatt(() => chars.status.readValue()).then(renderStatus).catch(() => {});
       readAlerts().catch(() => {});
+      if (++pollCount % 3 === 0) readStats().catch(() => {});
     }, 2000);
   }
 
@@ -659,11 +799,23 @@
         chars.names = chars.alerts = null;
         hasAlerts = false;
       }
+      try {
+        chars.stats = await service.getCharacteristic(STATS);
+        hasStats = true;
+      } catch (_) {
+        chars.stats = null;
+        hasStats = false;
+      }
       if (hasAlerts) {
         deviceNames = new TextDecoder().decode(await gatt(() => chars.names.readValue())).split("\n");
         fillNames(deviceNames);
         refreshNamesDirty();
         await readAlerts();
+      }
+
+      if (hasStats) {
+        await sendTime();
+        await readStats();
       }
 
       const info = parseInfo(new TextDecoder().decode(await gatt(() => chars.info.readValue())));
@@ -788,6 +940,7 @@
         ui.namesNote.className = "note good";
       }
       await readAlerts();
+      await readStats();
     } catch (err) {
       busy = false;
       ui.namesNote.textContent = "Save failed: " + err.message;
@@ -807,6 +960,8 @@
   }
 
   ui.namesBtn.addEventListener("click", saveNames);
+  ui.statsDay.addEventListener("change", () => readStats().catch((err) => showMessage("Couldn't read the stats: " + err.message, "bad")));
+  ui.statsResetBtn.addEventListener("click", resetStats);
   nameInputs.forEach((el) => el.addEventListener("input", refreshNamesDirty));
   ui.ackBtn.addEventListener("click", () => alertCommand(CMD_ACK, ""));
   ui.testBtn.addEventListener("click", () => alertCommand(CMD_TEST, "Test alerts switched. Press Test alerts again to clear them."));
