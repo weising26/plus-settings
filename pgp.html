@@ -124,6 +124,18 @@
   .msg.bad { border-color: var(--danger); color: var(--danger); }
   .msg.warn { border-color: var(--warn); }
   .hidden { display: none !important; }
+  input.name {
+    font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; min-height: 44px; width: 150px; flex: none;
+  }
+  .alert-list { display: grid; gap: 8px; }
+  .alert-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .alert-row strong { font-weight: 600; }
+  .alert-row .state { color: var(--muted); font-size: 14px; text-align: right; }
+  .alert-row.problem { border-color: var(--danger); }
+  .alert-row.problem .state { color: var(--danger); font-weight: 600; }
+  .alert-row.seen { border-color: var(--warn); }
+  .alert-row.seen .state { color: var(--warn); }
   .warn-text { color: var(--warn); font-size: 13px; display: block; margin-top: 2px; }
   footer { color: var(--muted); font-size: 13px; margin-top: 18px; }
   footer p + p { margin-top: 6px; }
@@ -203,6 +215,33 @@
       <label class="switch"><input id="verbose" type="checkbox" aria-label="Detailed log"><span class="track"></span></label>
     </div>
 
+    <h3 class="alert-setting">Alerts</h3>
+
+    <div class="row first alert-setting">
+      <div class="row-label">
+        <strong>Vibrate on problems</strong>
+        <span>Buzz when an account is out of balls, or its bag or storage is full.</span>
+      </div>
+      <label class="switch"><input id="vibrate" type="checkbox" aria-label="Vibrate on problems"><span class="track"></span></label>
+    </div>
+
+    <div class="row alert-setting">
+      <div class="row-label">
+        <strong>Remind every</strong>
+        <span>Buzz again until you press OK or the BOOT button.</span>
+      </div>
+      <select id="repeat" aria-label="Remind every">
+        <option value="0">Never</option>
+        <option value="1">1 min</option>
+        <option value="2">2 min</option>
+        <option value="5">5 min</option>
+        <option value="10">10 min</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">1 hour</option>
+      </select>
+    </div>
+
     <h3>Needs a restart</h3>
 
     <div class="row first">
@@ -250,6 +289,31 @@
     </div>
   </section>
 
+  <section id="alertsCard" class="card hidden" aria-labelledby="alertsHeading">
+    <h2 id="alertsHeading">Alerts</h2>
+    <div id="alertList" class="alert-list"><p class="sub">No accounts yet.</p></div>
+    <div class="actions" style="margin-top:14px">
+      <button id="ackBtn" class="primary">OK, seen</button>
+      <button id="testBtn" class="secondary">Test alerts</button>
+    </div>
+  </section>
+
+  <section id="namesCard" class="card hidden" aria-labelledby="namesHeading">
+    <h2 id="namesHeading">Account names</h2>
+    <p class="sub" style="margin-bottom:8px">Shown on the screen and in Alerts. Up to 12 letters; the screen fits 9.</p>
+    <div class="row first"><label class="row-label" for="name0"><strong>Plus+ #1</strong><span>Wired to D1</span></label><input id="name0" class="name" maxlength="12" placeholder="Plus+ 1"></div>
+    <div class="row"><label class="row-label" for="name1"><strong>Plus+ #2</strong><span>Wired to D2</span></label><input id="name1" class="name" maxlength="12" placeholder="Plus+ 2"></div>
+    <div class="row"><label class="row-label" for="name2"><strong>Phone 1</strong><span>This device, first slot</span></label><input id="name2" class="name" maxlength="12" placeholder="Phone 1"></div>
+    <div class="row"><label class="row-label" for="name3"><strong>Phone 2</strong><span>Second slot</span></label><input id="name3" class="name" maxlength="12" placeholder="Phone 2"></div>
+    <div class="row"><label class="row-label" for="name4"><strong>Phone 3</strong><span>Third slot</span></label><input id="name4" class="name" maxlength="12" placeholder="Phone 3"></div>
+    <div class="row"><label class="row-label" for="name5"><strong>Phone 4</strong><span>Fourth slot</span></label><input id="name5" class="name" maxlength="12" placeholder="Phone 4"></div>
+    <p class="sub" style="margin-top:8px">Phone slots follow the order phones connect, so a name stays with an account only while it stays connected.</p>
+    <div class="save-bar">
+      <span id="namesNote" class="note">Saved on the device.</span>
+      <button id="namesBtn" class="primary" disabled>Save names</button>
+    </div>
+  </section>
+
   <section id="actionsCard" class="card hidden" aria-labelledby="actionsHeading">
     <h2 id="actionsHeading">Actions</h2>
     <div class="actions">
@@ -275,12 +339,17 @@
   const STATUS = "5c3a0003" + BASE;
   const COMMAND = "5c3a0004" + BASE;
   const INFO = "5c3a0005" + BASE;
+  const NAMES = "5c3a0006" + BASE;   // alert hub firmware only
+  const ALERTS = "5c3a0007" + BASE;  // alert hub firmware only
   const DEVICE_NAME = "Pokemon GO Plus";
+  const ACCOUNT_DEFAULTS = ["Plus+ 1", "Plus+ 2", "Phone 1", "Phone 2", "Phone 3", "Phone 4"];
+  const PROBLEMS = { BAG_FULL: "Bag full", BOX_FULL: "Storage full", NO_BALLS: "Out of Poké Balls" };
+  const STATES = { 1: "OK", 2: "Not in game", 3: "No signal" };
 
   // matches pgp_settings_service.h
   const FLAGS = { autoCatch: 0x01, autoSpin: 0x02, powerbankPing: 0x04, ledInteractions: 0x08, useButton: 0x10, useLed: 0x20, verbose: 0x40 };
   const TOGGLES = Object.keys(FLAGS);
-  const CMD_RESTART = 0x01, CMD_ADVERTISE = 0x02;
+  const CMD_RESTART = 0x01, CMD_ADVERTISE = 0x02, CMD_ACK = 0x03, CMD_TEST = 0x04;
   const RESULTS = {
     1: ["Saved on the device.", "good"],
     2: ["The device couldn't save to its memory. Settings apply until it restarts.", "bad"],
@@ -293,7 +362,9 @@
   ["dot", "connTitle", "connSub", "connectBtn", "disconnectBtn", "message", "unsupported",
    "settingsCard", "statusCard", "actionsCard", "target", "slot", "saveBtn", "saveNote",
    "stConnections", "stName", "stMac", "stUptime", "stHeap", "restartBox", "restartNowBtn",
-   "advertiseBtn", "restartBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
+   "advertiseBtn", "restartBtn", "alertsCard", "namesCard", "alertList", "ackBtn", "testBtn",
+   "namesNote", "namesBtn", "vibrate", "repeat"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
+  const nameInputs = [0, 1, 2, 3, 4, 5].map((i) => $("name" + i));
 
   let device = null;
   let chars = {};
@@ -302,6 +373,8 @@
   let expectingDisconnect = false;
   let busy = false;
   let pollTimer = null;
+  let hasAlerts = false;      // firmware has the alert hub characteristics
+  let deviceNames = null;     // last names read from the device
 
   // Web Bluetooth allows one GATT operation at a time, so every read and write
   // goes through this queue.
@@ -327,6 +400,8 @@
     ui.disconnectBtn.classList.toggle("hidden", !connected);
     ui.connectBtn.disabled = state === "busy";
     [ui.settingsCard, ui.statusCard, ui.actionsCard].forEach((el) => el.classList.toggle("hidden", !connected));
+    [ui.alertsCard, ui.namesCard].forEach((el) => el.classList.toggle("hidden", !connected || !hasAlerts));
+    document.querySelectorAll(".alert-setting").forEach((el) => el.classList.toggle("hidden", !hasAlerts));
   }
 
   function checkSupport() {
@@ -342,32 +417,102 @@
     return false;
   }
 
-  // ---- settings: [1, flags, target, slot, 0, 0, 0, 0] ----
+  // ---- settings: [format, flags, target, slot, alertFlags, repeatMin, 0, 0] ----
+  // format 1 has no alert bytes; format 2 (alert hub firmware) adds bytes 4 and 5.
   function decodeSettings(view) {
-    if (view.byteLength < 4 || view.getUint8(0) !== 1) throw new Error("Unknown settings format from the device.");
+    const format = view.byteLength >= 4 ? view.getUint8(0) : 0;
+    if (format !== 1 && format !== 2) throw new Error("Unknown settings format from the device.");
     const flags = view.getUint8(1);
-    const s = { target: view.getUint8(2), slot: view.getUint8(3) };
+    const s = { format, target: view.getUint8(2), slot: view.getUint8(3), vibrate: true, repeat: 5 };
+    if (format === 2 && view.byteLength >= 6) {
+      s.vibrate = !!(view.getUint8(4) & 0x01);
+      s.repeat = view.getUint8(5);
+    }
     TOGGLES.forEach((k) => { s[k] = !!(flags & FLAGS[k]); });
     return s;
   }
 
   function encodeSettings(s) {
     const buf = new Uint8Array(8);
-    buf[0] = 1;
+    buf[0] = deviceSettings && deviceSettings.format === 2 ? 2 : 1;
     buf[1] = TOGGLES.reduce((f, k) => f | (s[k] ? FLAGS[k] : 0), 0);
     buf[2] = s.target;
     buf[3] = s.slot;
+    buf[4] = s.vibrate ? 0x01 : 0;
+    buf[5] = s.repeat;
     return buf;
   }
 
   function formSettings() {
-    const s = { target: parseInt(ui.target.value, 10), slot: parseInt(ui.slot.value, 10) };
+    const s = {
+      target: parseInt(ui.target.value, 10), slot: parseInt(ui.slot.value, 10),
+      vibrate: ui.vibrate.checked, repeat: parseInt(ui.repeat.value, 10) || 0,
+    };
     TOGGLES.forEach((k) => { s[k] = ui[k].checked; });
     return s;
   }
 
   function sameSettings(a, b) {
-    return !!a && !!b && a.target === b.target && a.slot === b.slot && TOGGLES.every((k) => a[k] === b[k]);
+    return !!a && !!b && a.target === b.target && a.slot === b.slot &&
+      (!hasAlerts || (a.vibrate === b.vibrate && a.repeat === b.repeat)) &&
+      TOGGLES.every((k) => a[k] === b[k]);
+  }
+
+  // ---- alert hub ----
+  function renderAlerts(text) {
+    const rows = text.split("\n").filter(Boolean).map((line) => {
+      const [index, name, state, problem, acked, age] = line.split(",");
+      return { index: +index, name, state: +state, problem, acked: acked === "1", age: +age };
+    });
+    ui.alertList.textContent = "";
+    if (!rows.length) {
+      const p = document.createElement("p");
+      p.className = "sub";
+      p.textContent = "No accounts yet. Plus+ boards show up once their alert wire is connected.";
+      ui.alertList.appendChild(p);
+      return;
+    }
+    rows.sort((a, b) => (b.problem !== "NONE") - (a.problem !== "NONE") || a.acked - b.acked || a.index - b.index);
+    rows.forEach((r) => {
+      const row = document.createElement("div");
+      const hasProblem = r.problem !== "NONE";
+      row.className = "alert-row" + (hasProblem ? (r.acked ? " seen" : " problem") : "");
+      const name = document.createElement("strong");
+      name.textContent = r.name || ACCOUNT_DEFAULTS[r.index] || "Account " + r.index;
+      const state = document.createElement("span");
+      state.className = "state";
+      state.textContent = hasProblem
+        ? (PROBLEMS[r.problem] || r.problem) + " · " + formatAge(r.age) + (r.acked ? " · seen" : "")
+        : STATES[r.state] || "";
+      row.append(name, state);
+      ui.alertList.appendChild(row);
+    });
+  }
+
+  function formatAge(sec) {
+    if (sec < 60) return sec + " s";
+    if (sec < 3600) return Math.floor(sec / 60) + " min";
+    return Math.floor(sec / 3600) + " h";
+  }
+
+  function formNames() {
+    return nameInputs.map((el) => el.value.trim());
+  }
+
+  function fillNames(names) {
+    nameInputs.forEach((el, i) => { el.value = names[i] || ""; });
+  }
+
+  function refreshNamesDirty() {
+    const dirty = !!deviceNames && formNames().join("\n") !== deviceNames.join("\n");
+    ui.namesBtn.disabled = !dirty || busy;
+    ui.namesNote.textContent = dirty ? "Unsaved changes." : "Saved on the device.";
+    ui.namesNote.className = "note" + (dirty ? " dirty" : "");
+  }
+
+  async function readAlerts() {
+    if (!chars.alerts) return;
+    renderAlerts(new TextDecoder().decode(await gatt(() => chars.alerts.readValue())));
   }
 
   function setOptions(select, items, value) {
@@ -383,6 +528,14 @@
 
   function fillForm(s, slots) {
     TOGGLES.forEach((k) => { ui[k].checked = s[k]; });
+    ui.vibrate.checked = s.vibrate;
+    if (![...ui.repeat.options].some((o) => o.value === String(s.repeat))) {
+      const opt = document.createElement("option");
+      opt.value = String(s.repeat);
+      opt.textContent = s.repeat + " min";
+      ui.repeat.appendChild(opt);
+    }
+    ui.repeat.value = String(s.repeat);
     const targets = [];
     for (let i = 1; i <= maxConnections; i++) targets.push([i, i === 1 ? "1 phone" : i + " phones"]);
     if (s.target > maxConnections) targets.push([s.target, s.target + " phones"]);
@@ -457,6 +610,7 @@
     pollTimer = setInterval(() => {
       if (!chars.status || busy) return;
       gatt(() => chars.status.readValue()).then(renderStatus).catch(() => {});
+      readAlerts().catch(() => {});
     }, 2000);
   }
 
@@ -496,6 +650,21 @@
         command: await service.getCharacteristic(COMMAND),
         info: await service.getCharacteristic(INFO),
       };
+      // alert hub characteristics exist only on the alert hub firmware
+      try {
+        chars.names = await service.getCharacteristic(NAMES);
+        chars.alerts = await service.getCharacteristic(ALERTS);
+        hasAlerts = true;
+      } catch (_) {
+        chars.names = chars.alerts = null;
+        hasAlerts = false;
+      }
+      if (hasAlerts) {
+        deviceNames = new TextDecoder().decode(await gatt(() => chars.names.readValue())).split("\n");
+        fillNames(deviceNames);
+        refreshNamesDirty();
+        await readAlerts();
+      }
 
       const info = parseInfo(new TextDecoder().decode(await gatt(() => chars.info.readValue())));
       renderInfo(info);
@@ -595,6 +764,53 @@
     }
   }
 
+  async function saveNames() {
+    if (!chars.names) return;
+    const wanted = formNames();
+    if (wanted.some((n) => /[^\x20-\x7e]|,/.test(n))) {
+      ui.namesNote.textContent = "Use plain letters, numbers and spaces only (no commas): the screen has no other characters.";
+      ui.namesNote.className = "note bad";
+      return;
+    }
+    busy = true;
+    ui.namesBtn.disabled = true;
+    try {
+      await gatt(() => chars.names.writeValueWithResponse(new TextEncoder().encode(wanted.join("\n"))));
+      const st = renderStatus(await gatt(() => chars.status.readValue()));
+      deviceNames = new TextDecoder().decode(await gatt(() => chars.names.readValue())).split("\n");
+      fillNames(deviceNames);
+      busy = false;
+      refreshNamesDirty();
+      if (st && st.result !== 1) {
+        ui.namesNote.textContent = st.result === 3 ? "The device rejected those names." : "The device couldn't save the names.";
+        ui.namesNote.className = "note bad";
+      } else {
+        ui.namesNote.className = "note good";
+      }
+      await readAlerts();
+    } catch (err) {
+      busy = false;
+      ui.namesNote.textContent = "Save failed: " + err.message;
+      ui.namesNote.className = "note bad";
+    }
+  }
+
+  async function alertCommand(cmd, doneText) {
+    if (!chars.command) return;
+    try {
+      await sendCommand(cmd);
+      await readAlerts();
+      if (doneText) showMessage(doneText, "");
+    } catch (err) {
+      showMessage("That didn't work: " + err.message, "bad");
+    }
+  }
+
+  ui.namesBtn.addEventListener("click", saveNames);
+  nameInputs.forEach((el) => el.addEventListener("input", refreshNamesDirty));
+  ui.ackBtn.addEventListener("click", () => alertCommand(CMD_ACK, ""));
+  ui.testBtn.addEventListener("click", () => alertCommand(CMD_TEST, "Test alerts switched. Press Test alerts again to clear them."));
+  ["vibrate", "repeat"].forEach((k) => ui[k].addEventListener("change", refreshDirty));
   ui.connectBtn.addEventListener("click", connect);
   ui.disconnectBtn.addEventListener("click", disconnect);
   ui.saveBtn.addEventListener("click", save);
