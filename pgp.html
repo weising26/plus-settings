@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>GO Plus Settings</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1b1d22;
+    --muted: #5f6672;
+    --line: #e1e4e9;
+    --accent: #2f6fde;
+    --accent-text: #ffffff;
+    --ok: #1d8a4e;
+    --warn: #a65d00;
+    --danger: #c8322f;
+    --danger-bg: #fdf0ef;
+    --toggle-off: #c9ced6;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111317;
+      --card: #1b1e24;
+      --text: #eceef2;
+      --muted: #9aa2ae;
+      --line: #2c3039;
+      --accent: #5b8ff0;
+      --accent-text: #0d1117;
+      --ok: #47c07d;
+      --warn: #e0a24a;
+      --danger: #f07370;
+      --danger-bg: #2a1b1c;
+      --toggle-off: #3a3f49;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  main { max-width: 520px; margin: 0 auto; }
+  header { margin: 8px 0 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+  h3 { font-size: 13px; margin: 18px 0 4px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+  p { margin: 0; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; }
+  .nav { font-size: 14px; margin-bottom: 10px; color: var(--muted); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .conn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--toggle-off); flex: none; }
+  .dot.on { background: var(--ok); }
+  .dot.busy { background: var(--warn); }
+  .conn-text { flex: 1 1 160px; min-width: 0; }
+  .conn-text strong { display: block; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    padding: 11px 16px;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .primary { background: var(--accent); color: var(--accent-text); }
+  .secondary { background: transparent; color: var(--text); border-color: var(--line); }
+  .danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+  .full { width: 100%; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-top: 1px solid var(--line);
+  }
+  .row.first { border-top: 0; padding-top: 0; }
+  .row-label { min-width: 0; }
+  .row-label strong { display: block; font-weight: 600; }
+  .row-label span { color: var(--muted); font-size: 14px; }
+  .switch { position: relative; flex: none; width: 52px; height: 32px; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .switch .track {
+    position: absolute; inset: 0; border-radius: 16px; background: var(--toggle-off);
+    transition: background 0.15s; pointer-events: none;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(20px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  select {
+    font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; min-height: 44px; max-width: 170px;
+  }
+  .save-bar { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .save-bar .note { color: var(--muted); font-size: 14px; flex: 1 1 140px; }
+  .note.dirty { color: var(--warn); }
+  .note.good { color: var(--ok); }
+  .note.bad { color: var(--danger); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }
+  dt { color: var(--muted); font-size: 14px; }
+  dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .restart-box { margin-top: 14px; padding: 12px; border: 1px solid var(--warn); border-radius: 10px; font-size: 14px; }
+  .restart-box p { margin-bottom: 10px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .actions button { flex: 1 1 140px; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 14px; border: 1px solid var(--line); background: var(--card); }
+  .msg.bad { border-color: var(--danger); color: var(--danger); }
+  .msg.warn { border-color: var(--warn); }
+  .hidden { display: none !important; }
+  .warn-text { color: var(--warn); font-size: 13px; display: block; margin-top: 2px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 18px; }
+  footer p + p { margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="nav"><a href="./">Plus+ (XIAO nRF52840)</a> · <strong>GO Plus (XIAO ESP32-S3)</strong></p>
+  <header>
+    <h1>GO Plus Settings</h1>
+    <p class="sub">Change your pgpemu GO Plus emulator over Bluetooth. Phones can stay connected in Pokémon GO.</p>
+  </header>
+
+  <div id="unsupported" class="msg bad hidden"></div>
+  <div id="message" class="msg hidden" role="status" aria-live="polite"></div>
+
+  <section class="card">
+    <div class="conn">
+      <span id="dot" class="dot" aria-hidden="true"></span>
+      <div class="conn-text">
+        <strong id="connTitle">Not connected</strong>
+        <span id="connSub" class="sub">Tap Connect and pick “Pokemon GO Plus”.</span>
+      </div>
+      <button id="connectBtn" class="primary">Connect</button>
+      <button id="disconnectBtn" class="secondary hidden">Disconnect</button>
+    </div>
+  </section>
+
+  <section id="settingsCard" class="card hidden" aria-labelledby="settingsHeading">
+    <h2 id="settingsHeading">Settings</h2>
+
+    <div class="row first">
+      <div class="row-label">
+        <strong>Auto-catch Pokémon</strong>
+        <span>Press the button for you when a Pokémon appears.</span>
+      </div>
+      <label class="switch"><input id="autoCatch" type="checkbox" aria-label="Auto-catch Pokémon"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Auto-spin PokéStops</strong>
+        <span>Press the button for you at a PokéStop.</span>
+      </div>
+      <label class="switch"><input id="autoSpin" type="checkbox" aria-label="Auto-spin PokéStops"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Phones at once</strong>
+        <span>It keeps advertising until this many phones are connected.</span>
+      </div>
+      <select id="target" aria-label="Phones at once"></select>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Show catches and spins on LED</strong>
+        <span>Flash the LED for each catch or spin. Errors always show.</span>
+      </div>
+      <label class="switch"><input id="ledInteractions" type="checkbox" aria-label="Show catches and spins on LED"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Keep power bank awake</strong>
+        <span>Briefly turn Wi-Fi on every 30 s so the power bank doesn't switch off.</span>
+      </div>
+      <label class="switch"><input id="powerbankPing" type="checkbox" aria-label="Keep power bank awake"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Detailed log</strong>
+        <span>More messages on the USB serial monitor.</span>
+      </div>
+      <label class="switch"><input id="verbose" type="checkbox" aria-label="Detailed log"><span class="track"></span></label>
+    </div>
+
+    <h3>Needs a restart</h3>
+
+    <div class="row first">
+      <div class="row-label">
+        <strong>GO Plus identity</strong>
+        <span>Which uploaded secrets slot to act as.</span>
+      </div>
+      <select id="slot" aria-label="GO Plus identity"></select>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>Button</strong>
+        <span>Use the BOOT button to start or stop advertising.</span>
+      </div>
+      <label class="switch"><input id="useButton" type="checkbox" aria-label="Button"><span class="track"></span></label>
+    </div>
+
+    <div class="row">
+      <div class="row-label">
+        <strong>LED</strong>
+        <span>Status light on the board.</span>
+      </div>
+      <label class="switch"><input id="useLed" type="checkbox" aria-label="LED"><span class="track"></span></label>
+    </div>
+
+    <div class="save-bar">
+      <span id="saveNote" class="note">Saved on the device.</span>
+      <button id="saveBtn" class="primary" disabled>Save</button>
+    </div>
+  </section>
+
+  <section id="statusCard" class="card hidden" aria-labelledby="statusHeading">
+    <h2 id="statusHeading">Status</h2>
+    <dl>
+      <dt>Phones connected</dt><dd id="stConnections">–</dd>
+      <dt>Acting as</dt><dd id="stName">–</dd>
+      <dt>Bluetooth address</dt><dd id="stMac">–</dd>
+      <dt>Uptime</dt><dd id="stUptime">–</dd>
+      <dt>Free memory</dt><dd id="stHeap">–</dd>
+    </dl>
+    <div id="restartBox" class="restart-box hidden">
+      <p>Restart the device to use the new identity, button or LED setting. Connected phones reconnect by themselves.</p>
+      <button id="restartNowBtn" class="primary full">Restart now</button>
+    </div>
+  </section>
+
+  <section id="actionsCard" class="card hidden" aria-labelledby="actionsHeading">
+    <h2 id="actionsHeading">Actions</h2>
+    <div class="actions">
+      <button id="advertiseBtn" class="secondary">Let a phone connect</button>
+      <button id="restartBtn" class="danger">Restart</button>
+    </div>
+  </section>
+
+  <footer>
+    <p>Connect finds the device only while it is advertising. If every phone slot is in use, press the BOOT button, or tap “Let a phone connect” from a page that is already connected.</p>
+    <p>Android may ask to pair with “Pokemon GO Plus”. That is the device's normal Bluetooth pairing, so tap Pair.</p>
+    <p>Needs Chrome on Android. Anyone nearby can open this page while the device is advertising; there is no PIN.</p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const BASE = "-7e2d-4b8f-a1c9-3f6e8d2b4a10";
+  const SERVICE = "5c3a0001" + BASE;
+  const SETTINGS = "5c3a0002" + BASE;
+  const STATUS = "5c3a0003" + BASE;
+  const COMMAND = "5c3a0004" + BASE;
+  const INFO = "5c3a0005" + BASE;
+  const DEVICE_NAME = "Pokemon GO Plus";
+
+  // matches pgp_settings_service.h
+  const FLAGS = { autoCatch: 0x01, autoSpin: 0x02, powerbankPing: 0x04, ledInteractions: 0x08, useButton: 0x10, useLed: 0x20, verbose: 0x40 };
+  const TOGGLES = Object.keys(FLAGS);
+  const CMD_RESTART = 0x01, CMD_ADVERTISE = 0x02;
+  const RESULTS = {
+    1: ["Saved on the device.", "good"],
+    2: ["The device couldn't save to its memory. Settings apply until it restarts.", "bad"],
+    3: ["The device rejected those settings.", "bad"],
+    4: ["That slot has no secrets. Upload them with secrets_upload.py first.", "bad"],
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const ui = {};
+  ["dot", "connTitle", "connSub", "connectBtn", "disconnectBtn", "message", "unsupported",
+   "settingsCard", "statusCard", "actionsCard", "target", "slot", "saveBtn", "saveNote",
+   "stConnections", "stName", "stMac", "stUptime", "stHeap", "restartBox", "restartNowBtn",
+   "advertiseBtn", "restartBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
+
+  let device = null;
+  let chars = {};
+  let deviceSettings = null;
+  let maxConnections = 4;
+  let expectingDisconnect = false;
+  let busy = false;
+  let pollTimer = null;
+
+  // Web Bluetooth allows one GATT operation at a time, so every read and write
+  // goes through this queue.
+  let queue = Promise.resolve();
+  function gatt(fn) {
+    const run = queue.then(fn, fn);
+    queue = run.catch(() => {});
+    return run;
+  }
+
+  function showMessage(text, kind) {
+    if (!text) { ui.message.classList.add("hidden"); return; }
+    ui.message.textContent = text;
+    ui.message.className = "msg" + (kind ? " " + kind : "");
+  }
+
+  function setConnState(state, title, sub) {
+    ui.dot.className = "dot" + (state === "on" ? " on" : state === "busy" ? " busy" : "");
+    ui.connTitle.textContent = title;
+    ui.connSub.textContent = sub;
+    const connected = state === "on";
+    ui.connectBtn.classList.toggle("hidden", connected);
+    ui.disconnectBtn.classList.toggle("hidden", !connected);
+    ui.connectBtn.disabled = state === "busy";
+    [ui.settingsCard, ui.statusCard, ui.actionsCard].forEach((el) => el.classList.toggle("hidden", !connected));
+  }
+
+  function checkSupport() {
+    if (!window.isSecureContext) {
+      ui.unsupported.textContent = "This page has to be opened from an https:// address (or localhost) for Bluetooth to work.";
+    } else if (!navigator.bluetooth) {
+      ui.unsupported.textContent = "This browser can't use Bluetooth from a web page. Open this page in Chrome on Android.";
+    } else {
+      return true;
+    }
+    ui.unsupported.classList.remove("hidden");
+    ui.connectBtn.disabled = true;
+    return false;
+  }
+
+  // ---- settings: [1, flags, target, slot, 0, 0, 0, 0] ----
+  function decodeSettings(view) {
+    if (view.byteLength < 4 || view.getUint8(0) !== 1) throw new Error("Unknown settings format from the device.");
+    const flags = view.getUint8(1);
+    const s = { target: view.getUint8(2), slot: view.getUint8(3) };
+    TOGGLES.forEach((k) => { s[k] = !!(flags & FLAGS[k]); });
+    return s;
+  }
+
+  function encodeSettings(s) {
+    const buf = new Uint8Array(8);
+    buf[0] = 1;
+    buf[1] = TOGGLES.reduce((f, k) => f | (s[k] ? FLAGS[k] : 0), 0);
+    buf[2] = s.target;
+    buf[3] = s.slot;
+    return buf;
+  }
+
+  function formSettings() {
+    const s = { target: parseInt(ui.target.value, 10), slot: parseInt(ui.slot.value, 10) };
+    TOGGLES.forEach((k) => { s[k] = ui[k].checked; });
+    return s;
+  }
+
+  function sameSettings(a, b) {
+    return !!a && !!b && a.target === b.target && a.slot === b.slot && TOGGLES.every((k) => a[k] === b[k]);
+  }
+
+  function setOptions(select, items, value) {
+    select.textContent = "";
+    items.forEach(([v, label]) => {
+      const opt = document.createElement("option");
+      opt.value = String(v);
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+    select.value = String(value);
+  }
+
+  function fillForm(s, slots) {
+    TOGGLES.forEach((k) => { ui[k].checked = s[k]; });
+    const targets = [];
+    for (let i = 1; i <= maxConnections; i++) targets.push([i, i === 1 ? "1 phone" : i + " phones"]);
+    if (s.target > maxConnections) targets.push([s.target, s.target + " phones"]);
+    setOptions(ui.target, targets, s.target);
+    if (slots) {
+      const items = slots.map(([n, name]) => [n, "Slot " + n + ": " + name]);
+      if (!slots.some(([n]) => n === s.slot)) items.unshift([s.slot, "Slot " + s.slot]);
+      setOptions(ui.slot, items, s.slot);
+    } else {
+      ui.slot.value = String(s.slot);
+    }
+  }
+
+  function setNote(text, kind) {
+    ui.saveNote.textContent = text;
+    ui.saveNote.className = "note" + (kind ? " " + kind : "");
+  }
+
+  function refreshDirty() {
+    const dirty = !sameSettings(formSettings(), deviceSettings);
+    ui.saveBtn.disabled = !dirty || busy;
+    if (dirty) setNote("Unsaved changes.", "dirty");
+    else if (ui.saveNote.classList.contains("dirty")) setNote("Saved on the device.", "");
+  }
+
+  // ---- info: "name=..;mac=..;slots=0:Name,2:Other;max=4;chip=..;fw=.." ----
+  function parseInfo(text) {
+    const info = {};
+    text.split(";").forEach((part) => {
+      const i = part.indexOf("=");
+      if (i > 0) info[part.slice(0, i)] = part.slice(i + 1);
+    });
+    info.slotList = (info.slots || "").split(",").filter(Boolean).map((e) => {
+      const i = e.indexOf(":");
+      return [parseInt(e.slice(0, i), 10), e.slice(i + 1)];
+    }).filter(([n]) => !isNaN(n));
+    return info;
+  }
+
+  // ---- status: [1, active, target, slot, uptime u32, heap u32, flags, result, max, 0] ----
+  function formatUptime(sec) {
+    const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+    if (d > 0) return d + "d " + h + "h " + m + "m";
+    if (h > 0) return h + "h " + m + "m";
+    return m + "m " + (sec % 60) + "s";
+  }
+
+  function renderStatus(view) {
+    if (view.byteLength < 15 || view.getUint8(0) !== 1) return null;
+    const st = {
+      active: view.getUint8(1), target: view.getUint8(2), slot: view.getUint8(3),
+      uptime: view.getUint32(4, true), heap: view.getUint32(8, true),
+      restartNeeded: (view.getUint8(12) & 1) === 1, result: view.getUint8(13), max: view.getUint8(14),
+    };
+    if (st.max > 0) maxConnections = st.max;
+    ui.stConnections.textContent = st.active + " of " + st.target;
+    ui.stUptime.textContent = formatUptime(st.uptime);
+    ui.stHeap.textContent = Math.round(st.heap / 1024) + " KB";
+    ui.restartBox.classList.toggle("hidden", !st.restartNeeded);
+    return st;
+  }
+
+  function renderInfo(info) {
+    ui.stName.textContent = info.name || "–";
+    ui.stMac.textContent = info.mac || "–";
+    if (info.max) maxConnections = parseInt(info.max, 10) || maxConnections;
+  }
+
+  // ---- connection ----
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(() => {
+      if (!chars.status || busy) return;
+      gatt(() => chars.status.readValue()).then(renderStatus).catch(() => {});
+    }, 2000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  async function connect() {
+    showMessage("");
+    let picked;
+    try {
+      picked = await navigator.bluetooth.requestDevice({
+        filters: [{ name: DEVICE_NAME }],
+        optionalServices: [SERVICE],
+      });
+    } catch (err) {
+      if (err && err.name === "NotFoundError") return; // picker closed
+      showMessage("Couldn't open the Bluetooth picker: " + err.message, "bad");
+      return;
+    }
+
+    device = picked;
+    device.addEventListener("gattserverdisconnected", onDisconnected);
+    setConnState("busy", "Connecting…", device.name || DEVICE_NAME);
+    try {
+      const server = await device.gatt.connect();
+      let service;
+      try {
+        service = await server.getPrimaryService(SERVICE);
+      } catch (err) {
+        throw new Error("Connected, but the device has no settings service. Flash the pgpemu build that includes it. If it's already flashed, remove “Pokemon GO Plus” in Android Bluetooth settings and try again.");
+      }
+      chars = {
+        settings: await service.getCharacteristic(SETTINGS),
+        status: await service.getCharacteristic(STATUS),
+        command: await service.getCharacteristic(COMMAND),
+        info: await service.getCharacteristic(INFO),
+      };
+
+      const info = parseInfo(new TextDecoder().decode(await gatt(() => chars.info.readValue())));
+      renderInfo(info);
+      renderStatus(await gatt(() => chars.status.readValue()));
+      deviceSettings = decodeSettings(await gatt(() => chars.settings.readValue()));
+      fillForm(deviceSettings, info.slotList);
+      setNote("Saved on the device.", "");
+
+      setConnState("on", "Connected", (info.name ? info.name + " · " : "") + (device.name || DEVICE_NAME));
+      refreshDirty();
+      startPolling();
+    } catch (err) {
+      expectingDisconnect = true;
+      try { device.gatt.disconnect(); } catch (_) {}
+      setConnState("off", "Not connected", "Tap Connect and pick “Pokemon GO Plus”.");
+      showMessage(err.message || String(err), "bad");
+    }
+  }
+
+  function disconnect() {
+    if (device && device.gatt.connected) {
+      expectingDisconnect = true;
+      device.gatt.disconnect();
+    }
+  }
+
+  function onDisconnected() {
+    stopPolling();
+    chars = {};
+    const expected = expectingDisconnect;
+    expectingDisconnect = false;
+    setConnState("off", "Not connected", "Tap Connect and pick “Pokemon GO Plus”.");
+    if (!expected) showMessage("The device disconnected.", "warn");
+  }
+
+  async function save() {
+    if (!chars.settings) return;
+    const wanted = formSettings();
+    busy = true;
+    ui.saveBtn.disabled = true;
+    setNote("Saving…", "");
+    try {
+      await gatt(() => chars.settings.writeValueWithResponse(encodeSettings(wanted)));
+      const st = renderStatus(await gatt(() => chars.status.readValue()));
+      deviceSettings = decodeSettings(await gatt(() => chars.settings.readValue()));
+      fillForm(deviceSettings);
+      const result = st ? st.result : 0;
+      if (result && result !== 1 && RESULTS[result]) {
+        setNote(RESULTS[result][0], RESULTS[result][1]);
+      } else if (!sameSettings(wanted, deviceSettings)) {
+        setNote("The device didn't keep those settings. Try again.", "bad");
+      } else if (st && st.restartNeeded) {
+        setNote("Saved. Restart to use the new identity, button or LED setting.", "good");
+      } else {
+        setNote("Saved on the device.", "good");
+      }
+    } catch (err) {
+      setNote("Save failed: " + err.message, "bad");
+    } finally {
+      busy = false;
+      refreshDirty();
+    }
+  }
+
+  async function sendCommand(cmd) {
+    await gatt(() => chars.command.writeValueWithResponse(new Uint8Array([0x01, cmd])));
+  }
+
+  async function restart() {
+    if (!chars.command) return;
+    if (!window.confirm("Restart the device?\n\nConnected phones drop for a few seconds and then reconnect.")) return;
+    const done = "Restarting. Connect again in about 5 seconds if you want to change more.";
+    expectingDisconnect = true;
+    try {
+      await sendCommand(CMD_RESTART);
+      showMessage(done, "");
+    } catch (err) {
+      // the restart can end the connection before the write is confirmed
+      if (device && !device.gatt.connected) {
+        showMessage(done, "");
+      } else {
+        expectingDisconnect = false;
+        showMessage("Restart failed: " + err.message, "bad");
+      }
+    }
+  }
+
+  async function advertise() {
+    if (!chars.command) return;
+    try {
+      await sendCommand(CMD_ADVERTISE);
+      const st = renderStatus(await gatt(() => chars.status.readValue()));
+      if (st && st.result === 5) showMessage("The device is advertising. Another phone can connect now.", "");
+      else showMessage("The device didn't accept that command.", "bad");
+    } catch (err) {
+      showMessage("That didn't work: " + err.message, "bad");
+    }
+  }
+
+  ui.connectBtn.addEventListener("click", connect);
+  ui.disconnectBtn.addEventListener("click", disconnect);
+  ui.saveBtn.addEventListener("click", save);
+  ui.restartBtn.addEventListener("click", restart);
+  ui.restartNowBtn.addEventListener("click", restart);
+  ui.advertiseBtn.addEventListener("click", advertise);
+  TOGGLES.concat(["target", "slot"]).forEach((k) => ui[k].addEventListener("change", refreshDirty));
+  window.addEventListener("pagehide", disconnect);
+
+  checkSupport();
+})();
+</script>
+</body>
+</html>
