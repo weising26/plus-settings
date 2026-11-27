@@ -241,7 +241,7 @@
     <div class="row first alert-setting">
       <div class="row-label">
         <strong>Buzz on problems</strong>
-        <span>A long buzz when an account is out of balls, or its bag or storage is full.</span>
+        <span>A long buzz when an account's Pokémon storage or item bag is full, or it's out of Poké Balls.</span>
       </div>
       <label class="switch"><input id="vibrate" type="checkbox" aria-label="Buzz on problems"><span class="track"></span></label>
     </div>
@@ -333,7 +333,7 @@
 
   <section id="namesCard" class="card hidden" aria-labelledby="namesHeading">
     <h2 id="namesHeading">Account names</h2>
-    <p class="sub" style="margin-bottom:8px">Shown on the screen and in Alerts. Up to 12 letters; the screen fits 9.</p>
+    <p class="sub" style="margin-bottom:8px">Shown on the screen and in Accounts. Up to 12 letters; the screen fits 8.</p>
     <div class="row first"><label class="row-label" for="name0"><strong>Plus+ #1</strong><span>Wired to D1</span></label><input id="name0" class="name" maxlength="12" placeholder="Plus+ 1"></div>
     <div class="row"><label class="row-label" for="name1"><strong>Plus+ #2</strong><span>Wired to D2</span></label><input id="name1" class="name" maxlength="12" placeholder="Plus+ 2"></div>
     <div class="row"><label class="row-label" for="name2"><strong>Phone 1</strong><span>This device, first slot</span></label><input id="name2" class="name" maxlength="12" placeholder="Phone 1"></div>
@@ -377,7 +377,7 @@
   const STATS = "5c3a0008" + BASE;   // daily stats firmware only
   const DEVICE_NAME = "Pokemon GO Plus";
   const ACCOUNT_DEFAULTS = ["Plus+ 1", "Plus+ 2", "Phone 1", "Phone 2", "Phone 3", "Phone 4"];
-  const PROBLEMS = { BAG_FULL: "Bag full", BOX_FULL: "Storage full", NO_BALLS: "Out of Poké Balls" };
+  const PROBLEMS = { BOX_FULL: "Pokémon storage full", BAG_FULL: "Item bag full", NO_BALLS: "Out of Poké Balls" };
   const STATES = { 1: "OK", 2: "Not in game", 3: "No signal" };
 
   // matches pgp_settings_service.h
@@ -538,7 +538,7 @@
       const state = document.createElement("span");
       state.className = "state";
       state.textContent = hasProblem
-        ? r.problem.split("+").map((p) => PROBLEMS[p] || p).join(" + ") + " · " + formatAge(r.age) + (r.acked ? " · seen" : "")
+        ? r.problem.split("+").sort((a, b) => Object.keys(PROBLEMS).indexOf(a) - Object.keys(PROBLEMS).indexOf(b)).map((p) => PROBLEMS[p] || p).join(" + ") + " · " + formatAge(r.age) + (r.acked ? " · seen" : "")
         : STATES[r.state] || "";
       row.append(name, state);
       ui.alertList.appendChild(row);
@@ -632,7 +632,7 @@
       const strong = document.createElement("strong");
       strong.textContent = accountName(r.index);
       name.appendChild(strong);
-      const problems = [[r.boxFull, "storage full"], [r.noBalls, "out of balls"], [r.bagFull, "bag full"]]
+      const problems = [[r.boxFull, "Pokémon storage full"], [r.bagFull, "item bag full"], [r.noBalls, "out of balls"]]
         .filter(([n]) => n > 0).map(([n, label]) => label + " ×" + n);
       if (problems.length) {
         const span = document.createElement("span");
