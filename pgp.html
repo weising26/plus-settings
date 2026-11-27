@@ -272,6 +272,14 @@
       <label class="switch"><input id="catchBuzz" type="checkbox" aria-label="Buzz on catch"><span class="track"></span></label>
     </div>
 
+    <div class="row alert-setting buzz-v5">
+      <div class="row-label">
+        <strong>Buzz on disconnect</strong>
+        <span>Short-long-short-long, short-short-long-long once, when an account drops out of the game.</span>
+      </div>
+      <label class="switch"><input id="discBuzz" type="checkbox" aria-label="Buzz on disconnect"><span class="track"></span></label>
+    </div>
+
     <h3>Needs a restart</h3>
 
     <div class="row first">
@@ -378,7 +386,7 @@
   const DEVICE_NAME = "Pokemon GO Plus";
   const ACCOUNT_DEFAULTS = ["Plus+ 1", "Plus+ 2", "Phone 1", "Phone 2", "Phone 3", "Phone 4"];
   const PROBLEMS = { BOX_FULL: "Pokémon storage full", BAG_FULL: "Item bag full", NO_BALLS: "Out of Poké Balls" };
-  const STATES = { 1: "OK", 2: "Not in game", 3: "No signal" };
+  const STATES = { 1: "OK", 2: "Not in game", 3: "No signal", 4: "Disconnected", 5: "Waiting for a phone" };
 
   // matches pgp_settings_service.h
   const FLAGS = { autoCatch: 0x01, autoSpin: 0x02, powerbankPing: 0x04, ledInteractions: 0x08, useButton: 0x10, useLed: 0x20, verbose: 0x40 };
@@ -398,7 +406,7 @@
    "settingsCard", "statusCard", "actionsCard", "target", "slot", "saveBtn", "saveNote",
    "stConnections", "stName", "stMac", "stUptime", "stHeap", "restartBox", "restartNowBtn",
    "advertiseBtn", "restartBtn", "alertsCard", "namesCard", "alertList", "ackBtn", "testBtn",
-   "namesNote", "namesBtn", "vibrate", "repeat", "catchBuzz", "nonstopOption", "alertSummary", "statsCard", "statsDay", "statsBody", "statsResetBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
+   "namesNote", "namesBtn", "vibrate", "repeat", "catchBuzz", "discBuzz", "nonstopOption", "alertSummary", "statsCard", "statsDay", "statsBody", "statsResetBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
   const nameInputs = [0, 1, 2, 3, 4, 5].map((i) => $("name" + i));
 
   let device = null;
@@ -414,6 +422,7 @@
   let statsToday = null;      // hub's local day number for today
   let pollCount = 0;
   let hasBuzzV4 = false;      // firmware has catch buzz and nonstop buzz (settings v4)
+  let hasBuzzV5 = false;      // firmware has the disconnect buzz (settings v5)
 
   // Web Bluetooth allows one GATT operation at a time, so every read and write
   // goes through this queue.
@@ -443,6 +452,7 @@
     ui.statsCard.classList.toggle("hidden", !connected || !hasStats);
     document.querySelectorAll(".alert-setting").forEach((el) => el.classList.toggle("hidden", !hasAlerts));
     document.querySelectorAll(".buzz-v4").forEach((el) => el.classList.toggle("hidden", !hasBuzzV4));
+    document.querySelectorAll(".buzz-v5").forEach((el) => el.classList.toggle("hidden", !hasBuzzV5));
   }
 
   function checkSupport() {
@@ -460,17 +470,19 @@
 
   // ---- settings: [format, flags, target, slot, alertFlags, repeatMin, 0, 0] ----
   // format 1 has no alert bytes; format 2 (alert hub firmware) adds bytes 4 and 5.
-  // alertFlags: 0x01 buzz on problems, 0x02 buzz on catch, 0x04 nonstop (settings v4).
+  // alertFlags: 0x01 buzz on problems, 0x02 buzz on catch, 0x04 nonstop (settings v4),
+  // 0x08 buzz on disconnect (settings v5).
   function decodeSettings(view) {
     const format = view.byteLength >= 4 ? view.getUint8(0) : 0;
     if (format !== 1 && format !== 2) throw new Error("Unknown settings format from the device.");
     const flags = view.getUint8(1);
-    const s = { format, target: view.getUint8(2), slot: view.getUint8(3), vibrate: true, repeat: 5, catchBuzz: false, nonstop: false };
+    const s = { format, target: view.getUint8(2), slot: view.getUint8(3), vibrate: true, repeat: 5, catchBuzz: false, nonstop: false, discBuzz: false };
     if (format === 2 && view.byteLength >= 6) {
       const alertFlags = view.getUint8(4);
       s.vibrate = !!(alertFlags & 0x01);
       s.catchBuzz = !!(alertFlags & 0x02);
       s.nonstop = !!(alertFlags & 0x04);
+      s.discBuzz = !!(alertFlags & 0x08);
       s.repeat = view.getUint8(5);
     }
     TOGGLES.forEach((k) => { s[k] = !!(flags & FLAGS[k]); });
@@ -483,7 +495,7 @@
     buf[1] = TOGGLES.reduce((f, k) => f | (s[k] ? FLAGS[k] : 0), 0);
     buf[2] = s.target;
     buf[3] = s.slot;
-    buf[4] = (s.vibrate ? 0x01 : 0) | (hasBuzzV4 && s.catchBuzz ? 0x02 : 0) | (hasBuzzV4 && s.nonstop ? 0x04 : 0);
+    buf[4] = (s.vibrate ? 0x01 : 0) | (hasBuzzV4 && s.catchBuzz ? 0x02 : 0) | (hasBuzzV4 && s.nonstop ? 0x04 : 0) | (hasBuzzV5 && s.discBuzz ? 0x08 : 0);
     buf[5] = s.repeat;
     return buf;
   }
@@ -491,7 +503,7 @@
   function formSettings() {
     const s = {
       target: parseInt(ui.target.value, 10), slot: parseInt(ui.slot.value, 10),
-      vibrate: ui.vibrate.checked, catchBuzz: ui.catchBuzz.checked,
+      vibrate: ui.vibrate.checked, catchBuzz: ui.catchBuzz.checked, discBuzz: ui.discBuzz.checked,
       nonstop: hasBuzzV4 && ui.repeat.value === "nonstop",
       // nonstop keeps the stored minutes, used again when nonstop is turned off
       repeat: ui.repeat.value === "nonstop" ? (deviceSettings ? deviceSettings.repeat : 5) : parseInt(ui.repeat.value, 10) || 0,
@@ -504,22 +516,29 @@
     return !!a && !!b && a.target === b.target && a.slot === b.slot &&
       (!hasAlerts || (a.vibrate === b.vibrate && a.repeat === b.repeat)) &&
       (!hasBuzzV4 || (a.catchBuzz === b.catchBuzz && a.nonstop === b.nonstop)) &&
+      (!hasBuzzV5 || a.discBuzz === b.discBuzz) &&
       TOGGLES.every((k) => a[k] === b[k]);
   }
 
   // ---- alert hub ----
   function renderAlerts(text) {
+    // "index,name,state,problems,acked,age,disc" (disc from firmware v5)
     const rows = text.split("\n").filter(Boolean).map((line) => {
-      const [index, name, state, problem, acked, age] = line.split(",");
-      return { index: +index, name, state: +state, problem, acked: acked === "1", age: +age };
+      const [index, name, state, problem, acked, age, disc] = line.split(",");
+      const r = { index: +index, name, state: +state, problem, acked: acked === "1", age: +age, disc: disc === "1" };
+      r.dropped = r.state === 3 || r.state === 4; // no signal / disconnected: shown instead of problems
+      r.hasProblem = r.problem !== "NONE" && !r.dropped;
+      r.alert = (r.hasProblem && !r.acked) || r.disc;
+      r.attention = r.hasProblem || r.dropped;
+      return r;
     });
     ui.alertList.textContent = "";
-    const withProblems = rows.filter((r) => r.problem !== "NONE");
-    const unseen = withProblems.filter((r) => !r.acked).length;
-    ui.alertSummary.className = "alert-summary" + (withProblems.length ? " problem" : rows.length ? " good" : "");
+    const attention = rows.filter((r) => r.attention);
+    const unseen = attention.filter((r) => r.alert).length;
+    ui.alertSummary.className = "alert-summary" + (attention.length ? " problem" : rows.length ? " good" : "");
     ui.alertSummary.textContent = !rows.length ? "No accounts yet."
-      : !withProblems.length ? "All accounts OK."
-      : withProblems.length + (withProblems.length === 1 ? " account needs" : " accounts need") + " attention" +
+      : !attention.length ? "All accounts OK."
+      : attention.length + (attention.length === 1 ? " account needs" : " accounts need") + " attention" +
         (unseen ? "" : " (seen)") + ".";
     if (!rows.length) {
       const p = document.createElement("p");
@@ -528,18 +547,17 @@
       ui.alertList.appendChild(p);
       return;
     }
-    rows.sort((a, b) => (b.problem !== "NONE") - (a.problem !== "NONE") || a.acked - b.acked || a.index - b.index);
+    rows.sort((a, b) => b.alert - a.alert || b.attention - a.attention || a.index - b.index);
     rows.forEach((r) => {
       const row = document.createElement("div");
-      const hasProblem = r.problem !== "NONE";
-      row.className = "alert-row" + (hasProblem ? (r.acked ? " seen" : " problem") : "");
+      row.className = "alert-row" + (r.alert ? " problem" : r.attention ? " seen" : "");
       const name = document.createElement("strong");
       name.textContent = r.name || ACCOUNT_DEFAULTS[r.index] || "Account " + r.index;
       const state = document.createElement("span");
       state.className = "state";
-      state.textContent = hasProblem
+      state.textContent = r.hasProblem
         ? r.problem.split("+").sort((a, b) => Object.keys(PROBLEMS).indexOf(a) - Object.keys(PROBLEMS).indexOf(b)).map((p) => PROBLEMS[p] || p).join(" + ") + " · " + formatAge(r.age) + (r.acked ? " · seen" : "")
-        : STATES[r.state] || "";
+        : (STATES[r.state] || "") + (r.dropped && !r.disc ? " · seen" : "");
       row.append(name, state);
       ui.alertList.appendChild(row);
     });
@@ -699,6 +717,7 @@
     TOGGLES.forEach((k) => { ui[k].checked = s[k]; });
     ui.vibrate.checked = s.vibrate;
     ui.catchBuzz.checked = s.catchBuzz;
+    ui.discBuzz.checked = s.discBuzz;
     if (![...ui.repeat.options].some((o) => o.value === String(s.repeat))) {
       const opt = document.createElement("option");
       opt.value = String(s.repeat);
@@ -852,6 +871,7 @@
       const info = parseInfo(new TextDecoder().decode(await gatt(() => chars.info.readValue())));
       const fw = /settings v(\d+)/.exec(info.fw || "");
       hasBuzzV4 = hasAlerts && !!fw && parseInt(fw[1], 10) >= 4;
+      hasBuzzV5 = hasAlerts && !!fw && parseInt(fw[1], 10) >= 5;
       ui.nonstopOption.hidden = ui.nonstopOption.disabled = !hasBuzzV4;
       renderInfo(info);
       renderStatus(await gatt(() => chars.status.readValue()));
@@ -999,7 +1019,7 @@
   nameInputs.forEach((el) => el.addEventListener("input", refreshNamesDirty));
   ui.ackBtn.addEventListener("click", () => alertCommand(CMD_ACK, ""));
   ui.testBtn.addEventListener("click", () => alertCommand(CMD_TEST, "Test alerts switched. Press Test alerts again to clear them."));
-  ["vibrate", "repeat", "catchBuzz"].forEach((k) => ui[k].addEventListener("change", refreshDirty));
+  ["vibrate", "repeat", "catchBuzz", "discBuzz"].forEach((k) => ui[k].addEventListener("change", refreshDirty));
   ui.connectBtn.addEventListener("click", connect);
   ui.disconnectBtn.addEventListener("click", disconnect);
   ui.saveBtn.addEventListener("click", save);
