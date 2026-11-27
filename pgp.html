@@ -280,6 +280,21 @@
       <label class="switch"><input id="discBuzz" type="checkbox" aria-label="Buzz on disconnect"><span class="track"></span></label>
     </div>
 
+    <div class="row alert-setting buzz-v6">
+      <div class="row-label">
+        <strong>Screen stays on</strong>
+        <span>Then it sleeps until a new alert, a BOOT press or a Plus+ is moved. Stays on while an alert is open.</span>
+      </div>
+      <select id="screenTimeout" aria-label="Screen stays on">
+        <option value="255">Always on</option>
+        <option value="1">10 s</option>
+        <option value="3">30 s</option>
+        <option value="6">1 min</option>
+        <option value="12">2 min</option>
+        <option value="30">5 min</option>
+      </select>
+    </div>
+
     <h3>Needs a restart</h3>
 
     <div class="row first">
@@ -406,7 +421,7 @@
    "settingsCard", "statusCard", "actionsCard", "target", "slot", "saveBtn", "saveNote",
    "stConnections", "stName", "stMac", "stUptime", "stHeap", "restartBox", "restartNowBtn",
    "advertiseBtn", "restartBtn", "alertsCard", "namesCard", "alertList", "ackBtn", "testBtn",
-   "namesNote", "namesBtn", "vibrate", "repeat", "catchBuzz", "discBuzz", "nonstopOption", "alertSummary", "statsCard", "statsDay", "statsBody", "statsResetBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
+   "namesNote", "namesBtn", "vibrate", "repeat", "catchBuzz", "discBuzz", "screenTimeout", "nonstopOption", "alertSummary", "statsCard", "statsDay", "statsBody", "statsResetBtn"].concat(TOGGLES).forEach((id) => { ui[id] = $(id); });
   const nameInputs = [0, 1, 2, 3, 4, 5].map((i) => $("name" + i));
 
   let device = null;
@@ -423,6 +438,7 @@
   let pollCount = 0;
   let hasBuzzV4 = false;      // firmware has catch buzz and nonstop buzz (settings v4)
   let hasBuzzV5 = false;      // firmware has the disconnect buzz (settings v5)
+  let hasScreenV6 = false;    // firmware has the screen timeout (settings v6)
 
   // Web Bluetooth allows one GATT operation at a time, so every read and write
   // goes through this queue.
@@ -453,6 +469,7 @@
     document.querySelectorAll(".alert-setting").forEach((el) => el.classList.toggle("hidden", !hasAlerts));
     document.querySelectorAll(".buzz-v4").forEach((el) => el.classList.toggle("hidden", !hasBuzzV4));
     document.querySelectorAll(".buzz-v5").forEach((el) => el.classList.toggle("hidden", !hasBuzzV5));
+    document.querySelectorAll(".buzz-v6").forEach((el) => el.classList.toggle("hidden", !hasScreenV6));
   }
 
   function checkSupport() {
@@ -471,18 +488,20 @@
   // ---- settings: [format, flags, target, slot, alertFlags, repeatMin, 0, 0] ----
   // format 1 has no alert bytes; format 2 (alert hub firmware) adds bytes 4 and 5.
   // alertFlags: 0x01 buzz on problems, 0x02 buzz on catch, 0x04 nonstop (settings v4),
-  // 0x08 buzz on disconnect (settings v5).
+  // 0x08 buzz on disconnect (settings v5). Byte 6 (v6): screen timeout x10 s,
+  // 255 = always on; writing 0 leaves it unchanged.
   function decodeSettings(view) {
     const format = view.byteLength >= 4 ? view.getUint8(0) : 0;
     if (format !== 1 && format !== 2) throw new Error("Unknown settings format from the device.");
     const flags = view.getUint8(1);
-    const s = { format, target: view.getUint8(2), slot: view.getUint8(3), vibrate: true, repeat: 5, catchBuzz: false, nonstop: false, discBuzz: false };
+    const s = { format, target: view.getUint8(2), slot: view.getUint8(3), vibrate: true, repeat: 5, catchBuzz: false, nonstop: false, discBuzz: false, screen: 0 };
     if (format === 2 && view.byteLength >= 6) {
       const alertFlags = view.getUint8(4);
       s.vibrate = !!(alertFlags & 0x01);
       s.catchBuzz = !!(alertFlags & 0x02);
       s.nonstop = !!(alertFlags & 0x04);
       s.discBuzz = !!(alertFlags & 0x08);
+      if (view.byteLength >= 7) s.screen = view.getUint8(6);
       s.repeat = view.getUint8(5);
     }
     TOGGLES.forEach((k) => { s[k] = !!(flags & FLAGS[k]); });
@@ -497,6 +516,7 @@
     buf[3] = s.slot;
     buf[4] = (s.vibrate ? 0x01 : 0) | (hasBuzzV4 && s.catchBuzz ? 0x02 : 0) | (hasBuzzV4 && s.nonstop ? 0x04 : 0) | (hasBuzzV5 && s.discBuzz ? 0x08 : 0);
     buf[5] = s.repeat;
+    buf[6] = hasScreenV6 ? s.screen : 0;
     return buf;
   }
 
@@ -504,6 +524,7 @@
     const s = {
       target: parseInt(ui.target.value, 10), slot: parseInt(ui.slot.value, 10),
       vibrate: ui.vibrate.checked, catchBuzz: ui.catchBuzz.checked, discBuzz: ui.discBuzz.checked,
+      screen: hasScreenV6 ? parseInt(ui.screenTimeout.value, 10) || 0 : 0,
       nonstop: hasBuzzV4 && ui.repeat.value === "nonstop",
       // nonstop keeps the stored minutes, used again when nonstop is turned off
       repeat: ui.repeat.value === "nonstop" ? (deviceSettings ? deviceSettings.repeat : 5) : parseInt(ui.repeat.value, 10) || 0,
@@ -517,6 +538,7 @@
       (!hasAlerts || (a.vibrate === b.vibrate && a.repeat === b.repeat)) &&
       (!hasBuzzV4 || (a.catchBuzz === b.catchBuzz && a.nonstop === b.nonstop)) &&
       (!hasBuzzV5 || a.discBuzz === b.discBuzz) &&
+      (!hasScreenV6 || a.screen === b.screen) &&
       TOGGLES.every((k) => a[k] === b[k]);
   }
 
@@ -718,6 +740,15 @@
     ui.vibrate.checked = s.vibrate;
     ui.catchBuzz.checked = s.catchBuzz;
     ui.discBuzz.checked = s.discBuzz;
+    if (hasScreenV6) {
+      if (![...ui.screenTimeout.options].some((o) => o.value === String(s.screen))) {
+        const opt = document.createElement("option");
+        opt.value = String(s.screen);
+        opt.textContent = s.screen * 10 + " s";
+        ui.screenTimeout.appendChild(opt);
+      }
+      ui.screenTimeout.value = String(s.screen);
+    }
     if (![...ui.repeat.options].some((o) => o.value === String(s.repeat))) {
       const opt = document.createElement("option");
       opt.value = String(s.repeat);
@@ -872,6 +903,7 @@
       const fw = /settings v(\d+)/.exec(info.fw || "");
       hasBuzzV4 = hasAlerts && !!fw && parseInt(fw[1], 10) >= 4;
       hasBuzzV5 = hasAlerts && !!fw && parseInt(fw[1], 10) >= 5;
+      hasScreenV6 = hasAlerts && !!fw && parseInt(fw[1], 10) >= 6;
       ui.nonstopOption.hidden = ui.nonstopOption.disabled = !hasBuzzV4;
       renderInfo(info);
       renderStatus(await gatt(() => chars.status.readValue()));
@@ -1019,7 +1051,7 @@
   nameInputs.forEach((el) => el.addEventListener("input", refreshNamesDirty));
   ui.ackBtn.addEventListener("click", () => alertCommand(CMD_ACK, ""));
   ui.testBtn.addEventListener("click", () => alertCommand(CMD_TEST, "Test alerts switched. Press Test alerts again to clear them."));
-  ["vibrate", "repeat", "catchBuzz", "discBuzz"].forEach((k) => ui[k].addEventListener("change", refreshDirty));
+  ["vibrate", "repeat", "catchBuzz", "discBuzz", "screenTimeout"].forEach((k) => ui[k].addEventListener("change", refreshDirty));
   ui.connectBtn.addEventListener("click", connect);
   ui.disconnectBtn.addEventListener("click", disconnect);
   ui.saveBtn.addEventListener("click", save);
